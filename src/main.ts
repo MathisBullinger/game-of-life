@@ -7,78 +7,92 @@ if (!device) throw new Error("browser does not support WebGPU");
 
 const commandEncoder = device.createCommandEncoder();
 
-const createCellStateBuffer = (width: number, height: number) => {
-  if ((width * height) % 8) {
-    throw new Error(`buffer width * height must be divisible by 8`);
+type CellStateBufferOpts = {
+  label?: string;
+  width: number;
+  height: number;
+  initialBits: number[];
+};
+
+const createCellStateBuffer = async ({
+  label = "cell state",
+  width,
+  height,
+  initialBits,
+}: CellStateBufferOpts) => {
+  const bitSize = width * height;
+  if (bitSize % 8) {
+    throw new Error("Cell state buffer width x height must be multiple of 8!");
   }
-  const byteSize = (width * height) / 8;
+  const byteSize = bitSize / 8;
   if (byteSize % 4) {
-    throw new Error("buffer byte size must be multiple of 4");
+    throw new Error("Cell state buffer byte size must be multiple of 4!");
   }
-  return device.createBuffer({
-    label: "cell state",
-    mappedAtCreation: true,
+
+  const cellStateBuffer = device.createBuffer({
+    label,
     size: byteSize,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
-};
 
-const bufferWidth = 32;
-const bufferHeight = 32;
+  const dataU32 = Array((width * height) / 8 / 4).fill(0n);
 
-const gameState = [...Array(2)].map(() =>
-  createCellStateBuffer(bufferWidth, bufferHeight)
-);
-
-const readBuffer = async (gpuBuffer: GPUBuffer) => {
-  if (gpuBuffer.mapState !== "mapped") {
-    await gpuBuffer.mapAsync(GPUMapMode.READ);
-  }
-  const mapped = gpuBuffer.getMappedRange().slice(0);
-  gpuBuffer.unmap();
-  return mapped;
-};
-
-const writeCellStateBuffer = async (
-  gpuBuffer: GPUBuffer,
-  activeBits: number[]
-) => {
-  const bufferBytes = new Uint8Array(await readBuffer(gpuBuffer));
-  for (const i of activeBits) {
-    const byteIndex = Math.floor(i / 8);
-    bufferBytes[byteIndex] = bufferBytes[byteIndex] | (1 << i % 8);
+  for (let i = 0; i < initialBits.length; i++) {
+    const u32Index = Math.floor(i / 8 / 4);
+    const bitIndex = BigInt(i % (8 * 4));
+    if (initialBits[i]) {
+      console.log("set", i);
+      dataU32[u32Index] = dataU32[u32Index] | (1n << bitIndex);
+    }
   }
 
-  const copySrcBuffer = device.createBuffer({
-    label: "copy-src",
-    size: gpuBuffer.size,
-    usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
+  console.log({ dataU32 });
+
+  const data = new Uint32Array(dataU32.map((n) => Number(n)));
+
+  const uploadBuffer = device.createBuffer({
+    size: data.byteLength,
+    usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.MAP_WRITE,
   });
 
-  device.queue.writeBuffer(
-    copySrcBuffer,
-    0,
-    bufferBytes
-    // 0,
-    // bufferBytes.byteLength
-  );
+  await uploadBuffer.mapAsync(GPUMapMode.WRITE);
+  new Uint32Array(uploadBuffer.getMappedRange()).set(data);
+  uploadBuffer.unmap();
 
   commandEncoder.copyBufferToBuffer(
-    copySrcBuffer,
+    uploadBuffer,
     0,
-    gpuBuffer,
+    cellStateBuffer,
     0,
-    copySrcBuffer.size
+    data.byteLength
   );
+  console.log("byte length:", data.byteLength);
 
-  copySrcBuffer.destroy();
+  const commandBuffer = commandEncoder.finish();
+  device.queue.submit([commandBuffer]);
+
+  return cellStateBuffer;
 };
 
-await writeCellStateBuffer(gameState[0], [3, 4, bufferWidth + 3]);
+const width = 32;
+const height = 32;
+
+const initialBits = Array(width * height).fill(0);
+
+initialBits[32 + 4] = 1;
+initialBits[32 + 5] = 1;
+initialBits[32 * 2 + 4] = 1;
+initialBits[32 * 3 + 4] = 1;
+
+const cellStateBuffer = await createCellStateBuffer({
+  width,
+  height,
+  initialBits,
+});
 
 const canvas = document.querySelector("canvas")!;
-canvas.width = bufferWidth;
-canvas.height = bufferHeight;
+canvas.width = 32;
+canvas.height = 32;
 
 const context = canvas.getContext("webgpu");
 if (!context) throw new Error("failed to get webgpu context");
@@ -92,25 +106,10 @@ const module = device.createShaderModule({
   code: shaderSrc,
 });
 
-const pipeline = device.createRenderPipeline({
-  label: "render cells pipeline",
-  layout: "auto",
-  vertex: {
-    // entryPoint: "vs",
-    module,
-  },
-  fragment: {
-    // entryPoint: "fs",
-    module,
-    targets: [{ format: presentationFormat }],
-  },
-});
-
 const renderPassDescriptor = {
   label: "render pass cells",
   colorAttachments: [
     {
-      // view: context.getCurrentTexture().createView(),
       clearValue: [1, 1, 1, 1],
       loadOp: "clear",
       storeOp: "store",
@@ -118,26 +117,46 @@ const renderPassDescriptor = {
   ],
 } as any;
 
+const bindGroupLayout = device.createBindGroupLayout({
+  entries: [
+    {
+      binding: 0,
+      visibility: GPUShaderStage.FRAGMENT,
+      buffer: { type: "storage" },
+    },
+  ],
+});
+
 const bindGroup = device.createBindGroup({
   label: "bind group for cells",
-  layout: pipeline.getBindGroupLayout(0),
-  entries: [{ binding: 0, resource: { buffer: gameState[0] } }],
+  layout: bindGroupLayout,
+  entries: [{ binding: 0, resource: { buffer: cellStateBuffer } }],
+});
+
+const pipeline = device.createRenderPipeline({
+  label: "render cells pipeline",
+  layout: device.createPipelineLayout({
+    bindGroupLayouts: [bindGroupLayout],
+  }),
+  vertex: {
+    module,
+  },
+  fragment: {
+    module,
+    targets: [{ format: presentationFormat }],
+  },
 });
 
 function render() {
-  // Get the current texture from the canvas context and
-  // set it as the texture to render to.
   renderPassDescriptor.colorAttachments[0].view = context!
     .getCurrentTexture()
     .createView();
 
-  // make a command encoder to start encoding commands
-  const encoder = device!.createCommandEncoder({ label: "our encoder" });
+  const encoder = device!.createCommandEncoder({ label: "render cells" });
 
-  // make a render pass encoder to encode render specific commands
   const pass = encoder.beginRenderPass(renderPassDescriptor);
   pass.setPipeline(pipeline);
-  // pass.setBindGroup(0, bindGroup);
+  pass.setBindGroup(0, bindGroup);
   pass.draw(3);
   pass.end();
 
