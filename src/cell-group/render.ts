@@ -22,8 +22,6 @@ export class CellGroupRenderer {
   }
 
   public render(context: GPUCanvasContext) {
-    console.log("render", this.cellGroup.activeCellStateBuffer);
-
     const commandEncoder = device.createCommandEncoder({
       label: "render cell group",
     });

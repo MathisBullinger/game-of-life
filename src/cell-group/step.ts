@@ -41,8 +41,7 @@ export class CellGroupStepper {
     const pass = encoder.beginComputePass();
     pass.setPipeline(CellGroupStepper.pipeline);
     pass.setBindGroup(0, bindGroup);
-    console.log("step dispatch", this.cellGroup.width, this.cellGroup.height);
-    pass.dispatchWorkgroups(this.cellGroup.width, this.cellGroup.height);
+    pass.dispatchWorkgroups(this.cellGroup.width, this.cellGroup.height / 32);
     pass.end();
     device.queue.submit([encoder.finish()]);
 

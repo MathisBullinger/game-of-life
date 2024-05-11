@@ -11,15 +11,56 @@ struct Uniforms {
 fn updateCells(
   @builtin(global_invocation_id) global_invocation_id: vec3u
 ) {
-  // TODO: bit extraction & packing
-
   let indexU32 = global_invocation_id.y * uniforms.width + global_invocation_id.x;
 
   let currentU32 = cellsCurrent[indexU32];
 
-  cellsUpdated[indexU32] = ~currentU32;
+  var updatedU32: u32 = 0u;
+
+  for (var i = 0u; i < 32u; i += 1u) {
+    let bitIndex = indexU32 * 32 + i;
+    let x = bitIndex % uniforms.width;
+    let y = bitIndex / uniforms.width;
+    let currentBit = readBit(x, y);
+
+    let updatedBit = stepCell(x, y);
+
+    if (updatedBit == 1u) {
+      updatedU32 = updatedU32 | (1u << i);
+    }
+  }
+
+  cellsUpdated[indexU32] = updatedU32;
 }
 
-fn getVal() -> u32 {
-  return 1u;
+fn readBit(x: u32, y: u32) -> u32 {
+  let bitIndex = y * uniforms.width + x;
+  let valU32 = cellsCurrent[bitIndex / 32];
+  let valBit = (valU32 >> (bitIndex % 32)) & 1;
+  return valBit;
+}
+
+fn stepCell(x: u32, y: u32) -> u32 {
+  var livingNeighborCount = 0u;
+
+  for (var ix = max(x - 1, 0); ix <= min(x + 1, uniforms.width - 1); ix += 1) {
+    for (var iy = max(y - 1, 0); iy <= min(y + 1, uniforms.height - 1); iy += 1) {
+      if (ix == x && iy == y) {
+        continue;
+      }
+      if (readBit(ix, iy) == 1) {
+        livingNeighborCount += 1;
+      }
+    }
+  }
+
+  if (livingNeighborCount < 2 || livingNeighborCount > 3) {
+    return 0;
+  }
+  
+  if (livingNeighborCount == 3) { 
+    return 1u;
+  }
+
+  return readBit(x, y);
 }
