@@ -1,4 +1,4 @@
-import { CellGroup } from "./cell-group";
+import { CellGroup } from "./cell-group/cell-group";
 import { device } from "./webgpu";
 
 const width = 256;
