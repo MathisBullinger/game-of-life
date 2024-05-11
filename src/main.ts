@@ -41,7 +41,6 @@ const createCellStateBuffer = async ({
     const u32Index = Math.floor(i / 8 / 4);
     const bitIndex = BigInt(i % (8 * 4));
     if (initialBits[i]) {
-      console.log("set", i);
       dataU32[u32Index] = dataU32[u32Index] | (1n << bitIndex);
     }
   }
@@ -74,15 +73,27 @@ const createCellStateBuffer = async ({
   return cellStateBuffer;
 };
 
-const width = 32;
-const height = 32;
+const width = 256;
+const height = width;
 
 const initialBits = Array(width * height).fill(0);
 
-initialBits[32 + 4] = 1;
-initialBits[32 + 5] = 1;
-initialBits[32 * 2 + 4] = 1;
-initialBits[32 * 3 + 4] = 1;
+for (let x = 0; x < width; x++) {
+  for (let y = 0; y < height; y++) {
+    const dx = width / 2 - x;
+    const dy = height / 2 - y;
+    const mag = Math.sqrt(dx ** 2 + dy ** 2);
+    if (Math.abs(mag - width * 0.4) < 0.5) {
+      initialBits[y * width + x] = 1;
+    }
+    if (Math.abs(x - width / 2) === Math.abs(y - height / 2)) {
+      initialBits[y * width + x] = 1;
+    }
+    if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
+      initialBits[y * width + x] = 1;
+    }
+  }
+}
 
 const cellStateBuffer = await createCellStateBuffer({
   width,
@@ -90,9 +101,15 @@ const cellStateBuffer = await createCellStateBuffer({
   initialBits,
 });
 
+const uniformBuffer = device.createBuffer({
+  size: 2 * 4,
+  usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+});
+device.queue.writeBuffer(uniformBuffer, 0, new Uint32Array([width, height]));
+
 const canvas = document.querySelector("canvas")!;
-canvas.width = 32;
-canvas.height = 32;
+canvas.width = width;
+canvas.height = height;
 
 const context = canvas.getContext("webgpu");
 if (!context) throw new Error("failed to get webgpu context");
@@ -124,13 +141,21 @@ const bindGroupLayout = device.createBindGroupLayout({
       visibility: GPUShaderStage.FRAGMENT,
       buffer: { type: "storage" },
     },
+    {
+      binding: 1,
+      visibility: GPUShaderStage.FRAGMENT,
+      buffer: { type: "uniform" },
+    },
   ],
 });
 
 const bindGroup = device.createBindGroup({
   label: "bind group for cells",
   layout: bindGroupLayout,
-  entries: [{ binding: 0, resource: { buffer: cellStateBuffer } }],
+  entries: [
+    { binding: 0, resource: { buffer: cellStateBuffer } },
+    { binding: 1, resource: { buffer: uniformBuffer } },
+  ],
 });
 
 const pipeline = device.createRenderPipeline({

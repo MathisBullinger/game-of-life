@@ -1,4 +1,10 @@
-@group(0) @binding(0) var<storage, read_write> data: array<u32>;
+struct Uniforms {
+  width: u32,
+  height: u32
+}
+
+@group(0) @binding(0) var<storage, read_write> cells: array<u32>;
+@group(0) @binding(1) var<uniform> uniforms: Uniforms;
 
 struct VertexOutput {
   @builtin(position) pos: vec4<f32>,
@@ -17,15 +23,17 @@ fn vs(
   return vec4f(pos[vertexIndex], 0.0, 1.0);
 }
 
+const size = 64;
+
 @fragment 
 fn fs(in: VertexOutput) -> @location(0) vec4f {
   let x = u32(in.pos.x);
   let y = u32(in.pos.y);
 
-  let bitIndex = y * 32 + x;
+  let bitIndex = y * uniforms.width + x;
   let u32Index = bitIndex / 32;
 
-  let u32Value = data[u32Index];
+  let u32Value = cells[u32Index];
 
   let bitOffset = bitIndex % 32;
   let bitMask = 1u << bitOffset;
