@@ -1,7 +1,7 @@
 import { CellGroup } from "./cell-group/cell-group";
 import { device } from "./webgpu";
 
-const width = 256;
+const width = 64;
 const height = width;
 
 const initialBits = Array(width * height).fill(0);
@@ -37,4 +37,8 @@ context.configure({
   format: navigator.gpu.getPreferredCanvasFormat(),
 });
 
+cellGroup.render(context);
+await new Promise((res) => setTimeout(res, 1000));
+cellGroup.step();
+await new Promise((res) => setTimeout(res, 1000));
 cellGroup.render(context);

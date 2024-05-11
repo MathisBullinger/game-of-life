@@ -1,10 +1,18 @@
 import { device } from "../webgpu";
 import { CellGroupRenderer } from "./render";
+import { CellGroupStepper } from "./step";
 
 export class CellGroup {
-  public readonly cellStateBuffer: GPUBuffer;
+  public readonly cellStateBuffers: [GPUBuffer, GPUBuffer];
+  public activeCellStateBuffer: GPUBuffer;
+  public get inactiveCellStateBuffer(): GPUBuffer {
+    return this.cellStateBuffers[
+      (this.cellStateBuffers.indexOf(this.activeCellStateBuffer) + 1) % 2
+    ];
+  }
 
   private readonly renderer: CellGroupRenderer;
+  private readonly stepper: CellGroupStepper;
 
   constructor(
     public readonly width: number,
@@ -21,20 +29,33 @@ export class CellGroup {
       throw new Error("Cell state buffer byte size must be multiple of 4!");
     }
 
-    this.cellStateBuffer = device.createBuffer({
-      label: "cell state",
-      size: byteSize,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    });
+    this.cellStateBuffers = [
+      device.createBuffer({
+        label: "cell state a",
+        size: byteSize,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      }),
+      device.createBuffer({
+        label: "cell state b",
+        size: byteSize,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      }),
+    ];
+    this.activeCellStateBuffer = this.cellStateBuffers[0];
 
     this.renderer = new CellGroupRenderer(this);
+    this.stepper = new CellGroupStepper(this);
   }
 
   public render(context: GPUCanvasContext) {
     this.renderer.render(context);
   }
 
-  public async initialize(bits: number[]) {
+  public step() {
+    this.stepper.step();
+  }
+
+  public async initialize(bits: number[], buffer = this.activeCellStateBuffer) {
     if (bits.length !== this.width * this.height) {
       throw new Error(
         `${this.width}x${this.height} cell group must have ${this.width * this.height} bits`
@@ -68,11 +89,13 @@ export class CellGroup {
     commandEncoder.copyBufferToBuffer(
       uploadBuffer,
       0,
-      this.cellStateBuffer,
+      buffer,
       0,
       data.byteLength
     );
 
     device.queue.submit([commandEncoder.finish()]);
+
+    uploadBuffer.destroy();
   }
 }

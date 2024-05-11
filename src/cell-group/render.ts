@@ -4,35 +4,26 @@ import { device } from "../webgpu";
 
 export class CellGroupRenderer {
   private static presentationFormat = navigator.gpu.getPreferredCanvasFormat();
-
   static readonly shaderModule = device.createShaderModule({
     code: shaderSrc,
   });
-
-  private readonly bindGroup: GPUBindGroup;
+  private readonly uniformBuffer: GPUBuffer;
 
   constructor(private readonly cellGroup: CellGroup) {
-    const uniformBuffer = device.createBuffer({
+    this.uniformBuffer = device.createBuffer({
       size: 2 * 4,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     device.queue.writeBuffer(
-      uniformBuffer,
+      this.uniformBuffer,
       0,
       new Uint32Array([cellGroup.width, cellGroup.height])
     );
-
-    this.bindGroup = device.createBindGroup({
-      label: "bind group for cells",
-      layout: CellGroupRenderer.bindGroupLayout,
-      entries: [
-        { binding: 0, resource: { buffer: cellGroup.cellStateBuffer } },
-        { binding: 1, resource: { buffer: uniformBuffer } },
-      ],
-    });
   }
 
   public render(context: GPUCanvasContext) {
+    console.log("render", this.cellGroup.activeCellStateBuffer);
+
     const commandEncoder = device.createCommandEncoder({
       label: "render cell group",
     });
@@ -49,8 +40,20 @@ export class CellGroupRenderer {
       ],
     });
 
+    const bindGroup = device.createBindGroup({
+      label: "bind group for cells",
+      layout: CellGroupRenderer.bindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: { buffer: this.cellGroup.activeCellStateBuffer },
+        },
+        { binding: 1, resource: { buffer: this.uniformBuffer } },
+      ],
+    });
+
     renderPass.setPipeline(CellGroupRenderer.renderPipeline);
-    renderPass.setBindGroup(0, this.bindGroup);
+    renderPass.setBindGroup(0, bindGroup);
     renderPass.draw(3);
     renderPass.end();
 
