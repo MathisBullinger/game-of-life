@@ -1,0 +1,12 @@
+{
+  "name": "game-of-life",
+  "scripts": {
+    "dev": "vite"
+  },
+  "author": "Mathis Bullinger",
+  "license": "ISC",
+  "devDependencies": {
+    "@webgpu/types": "^0.1.40",
+    "vite": "^5.2.11"
+  }
+}
