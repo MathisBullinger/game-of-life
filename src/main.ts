@@ -1,10 +1,16 @@
 import { CellGroup } from "./cell-group/cell-group";
 import { device } from "./webgpu";
 
-const width = 256;
+const width = 1024;
 const height = width;
 
 const initialBits = Array(width * height).fill(0);
+
+// for (let i = 0; i < 5e4; i++) {
+//   const x = Math.floor(Math.random() * width);
+//   const y = Math.floor(Math.random() * height);
+//   initialBits[y * width + x] = 1;
+// }
 
 for (let x = 0; x < width; x++) {
   for (let y = 0; y < height; y++) {
@@ -40,6 +46,15 @@ context.configure({
 cellGroup.render(context);
 
 let stop: (() => void) | null = null;
+let gen = 0;
+
+const stepCounter = document.querySelector<HTMLSpanElement>(".step-count")!;
+
+const step = () => {
+  cellGroup.step();
+  cellGroup.render(context);
+  stepCounter.innerText = `step ${++gen}`;
+};
 
 const run = async () => {
   let running = true;
@@ -49,13 +64,16 @@ const run = async () => {
   };
 
   while (running) {
-    cellGroup.step();
-    cellGroup.render(context);
-    await new Promise((res) => setTimeout(res, 100));
+    step();
+    await new Promise(requestAnimationFrame);
   }
 };
 
 window.addEventListener("click", () => {
   if (stop) stop();
   else run();
+});
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "ArrowRight") step();
 });

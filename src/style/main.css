@@ -6,3 +6,19 @@ canvas {
   height: 100vh;
   image-rendering: pixelated;
 }
+
+.info-panel {
+  position: fixed;
+  top: 2px;
+  right: 2px;
+  display: flex;
+  background-color: #0004;
+}
+
+.step-count {
+  text-align: right;
+  color: #fff;
+  font-size: 12px;
+  margin-right: 1em;
+  margin-top: 0.5em;
+}
