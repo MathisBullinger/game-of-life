@@ -4,6 +4,8 @@ import { RollingAverage, Timing, device } from "../webgpu";
 import { formatTime } from "../format-time";
 
 const gpuStepSpan = document.querySelector<HTMLSpanElement>(".gpu-step-time")!;
+const dispatchCount =
+  document.querySelector<HTMLSpanElement>(".dispatch-count")!;
 
 export class CellGroupStepper {
   static readonly shaderModule = device.createShaderModule({
@@ -46,7 +48,18 @@ export class CellGroupStepper {
     const pass = this.timing.beginComputePass(encoder);
     pass.setPipeline(CellGroupStepper.pipeline);
     pass.setBindGroup(0, bindGroup);
-    pass.dispatchWorkgroups(this.cellGroup.width, this.cellGroup.height / 32);
+    const dispatches = [
+      Math.ceil((this.cellGroup.width * this.cellGroup.height) / 32 / 64),
+    ] as const;
+    pass.dispatchWorkgroups(...dispatches);
+
+    dispatchCount.innerText = [
+      dispatches.join("x"),
+      dispatches.length > 1 ? dispatches.reduce((a, c) => a + c, 0) : null,
+    ]
+      .filter(Boolean)
+      .join("=");
+
     pass.end();
     device.queue.submit([encoder.finish()]);
 

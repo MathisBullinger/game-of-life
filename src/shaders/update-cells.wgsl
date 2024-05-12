@@ -7,11 +7,18 @@ struct Uniforms {
 @group(0) @binding(1) var<storage, read_write> cellsCurrent: array<u32>;
 @group(0) @binding(2) var<storage, read_write> cellsUpdated: array<u32>;
 
-@compute @workgroup_size(1, 1, 1)
+const chunkWidth = 64;
+const chunkHeight = 1;
+
+@compute @workgroup_size(chunkWidth, chunkHeight, 1)
 fn updateCells(
   @builtin(global_invocation_id) global_invocation_id: vec3u
 ) {
   let indexU32 = global_invocation_id.y * uniforms.width + global_invocation_id.x;
+  let countU32 = (uniforms.width * uniforms.height) / 32;
+  if (indexU32 >= countU32) {
+    return;
+  }
 
   let currentU32 = cellsCurrent[indexU32];
 

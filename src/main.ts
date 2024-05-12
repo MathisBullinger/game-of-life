@@ -1,5 +1,5 @@
 import { CellGroup } from "./cell-group/cell-group";
-import { device } from "./webgpu";
+import { RollingAverage, device } from "./webgpu";
 
 const width = 1024;
 const height = width;
@@ -47,6 +47,7 @@ cellGroup.render(context);
 
 const stepCounter = document.querySelector<HTMLSpanElement>(".step-count")!;
 const fpsCounter = document.querySelector<HTMLSpanElement>(".fps-count")!;
+const fpsAvg = new RollingAverage();
 
 let gen = 0;
 let lastUpdate: number | null = null;
@@ -55,7 +56,8 @@ const step = async () => {
   const now = performance.now();
   if (lastUpdate !== null) {
     const dt = now - lastUpdate;
-    fpsCounter.innerText = (1000 / dt).toFixed(1);
+    fpsAvg.addSample(1000 / dt);
+    fpsCounter.innerText = fpsAvg.get().toFixed(1);
   }
   lastUpdate = now;
 
@@ -77,7 +79,7 @@ const run = async () => {
   }
 };
 
-window.addEventListener("click", () => {
+canvas.addEventListener("click", () => {
   if (stop) stop();
   else run();
 });
