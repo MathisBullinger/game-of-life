@@ -6,6 +6,7 @@ import { formatTime } from "../format-time";
 const gpuStepSpan = document.querySelector<HTMLSpanElement>(".gpu-step-time")!;
 const dispatchCount =
   document.querySelector<HTMLSpanElement>(".dispatch-count")!;
+const cupsCount = document.querySelector<HTMLSpanElement>(".cups-count")!;
 
 export class CellGroupStepper {
   static readonly shaderModule = device.createShaderModule({
@@ -68,6 +69,13 @@ export class CellGroupStepper {
 
     this.timingAvg.addSample(await this.timing.getResult());
     gpuStepSpan.innerText = formatTime(this.timingAvg.get(), "ns");
+
+    const cellUpdatesPerSecond =
+      (10e9 / this.timingAvg.get()) *
+      this.cellGroup.width *
+      this.cellGroup.height;
+
+    cupsCount.innerText = cellUpdatesPerSecond.toExponential(2);
   }
 
   static bindGroupLayout = device.createBindGroupLayout({
