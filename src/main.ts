@@ -45,17 +45,26 @@ context.configure({
 
 cellGroup.render(context);
 
-let stop: (() => void) | null = null;
-let gen = 0;
-
 const stepCounter = document.querySelector<HTMLSpanElement>(".step-count")!;
+const fpsCounter = document.querySelector<HTMLSpanElement>(".fps-count")!;
+
+let gen = 0;
+let lastUpdate: number | null = null;
 
 const step = () => {
+  const now = performance.now();
+  if (lastUpdate !== null) {
+    const dt = now - lastUpdate;
+    fpsCounter.innerText = (1000 / dt).toFixed(1);
+  }
+  lastUpdate = now;
+
   cellGroup.step();
   cellGroup.render(context);
-  stepCounter.innerText = `step ${++gen}`;
+  stepCounter.innerText = `${++gen}`;
 };
 
+let stop: (() => void) | null = null;
 const run = async () => {
   let running = true;
   stop = () => {
@@ -75,5 +84,8 @@ window.addEventListener("click", () => {
 });
 
 window.addEventListener("keydown", (event) => {
-  if (event.key === "ArrowRight") step();
+  if (event.key === "ArrowRight") {
+    event.preventDefault();
+    step();
+  }
 });
