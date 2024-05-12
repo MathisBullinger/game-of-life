@@ -1,7 +1,8 @@
 {
   "name": "game-of-life",
   "scripts": {
-    "dev": "vite"
+    "dev": "vite",
+    "build": "vite build"
   },
   "author": "Mathis Bullinger",
   "license": "ISC",

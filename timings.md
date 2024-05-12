@@ -19,6 +19,7 @@ fps | 60.0
 dispatch | 512
 gpu step | 419.4µs
 gpu render | 144.2µs
+CUpS | 2.41e+10
 
 #### workgroup size = 128,1,1
 
