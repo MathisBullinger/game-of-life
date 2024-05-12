@@ -51,7 +51,7 @@ const fpsCounter = document.querySelector<HTMLSpanElement>(".fps-count")!;
 let gen = 0;
 let lastUpdate: number | null = null;
 
-const step = () => {
+const step = async () => {
   const now = performance.now();
   if (lastUpdate !== null) {
     const dt = now - lastUpdate;
@@ -59,8 +59,7 @@ const step = () => {
   }
   lastUpdate = now;
 
-  cellGroup.step();
-  cellGroup.render(context);
+  await Promise.all([cellGroup.step(), cellGroup.render(context)]);
   stepCounter.innerText = `${++gen}`;
 };
 
@@ -73,7 +72,7 @@ const run = async () => {
   };
 
   while (running) {
-    step();
+    await step();
     await new Promise(requestAnimationFrame);
   }
 };

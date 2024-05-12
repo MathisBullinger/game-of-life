@@ -13,9 +13,10 @@ canvas {
   right: 2px;
   display: flex;
   flex-direction: column;
-  background-color: #0004;
+  background-color: #000a;
   color: #fff;
   font-size: 12px;
   padding: 0.5em 1em;
   gap: 0.3em;
+  user-select: none;
 }

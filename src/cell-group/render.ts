@@ -1,6 +1,10 @@
 import shaderSrc from "../shaders/render-cells.wgsl?raw";
 import type { CellGroup } from "./cell-group";
-import { device } from "../webgpu";
+import { RollingAverage, Timing, device } from "../webgpu";
+import { formatTime } from "../format-time";
+
+const gpuRenderSpan =
+  document.querySelector<HTMLSpanElement>(".gpu-render-time")!;
 
 export class CellGroupRenderer {
   private static presentationFormat = navigator.gpu.getPreferredCanvasFormat();
@@ -8,6 +12,8 @@ export class CellGroupRenderer {
     code: shaderSrc,
   });
   private readonly uniformBuffer: GPUBuffer;
+  private readonly timing = new Timing();
+  private readonly timingAvg = new RollingAverage();
 
   constructor(private readonly cellGroup: CellGroup) {
     this.uniformBuffer = device.createBuffer({
@@ -21,12 +27,12 @@ export class CellGroupRenderer {
     );
   }
 
-  public render(context: GPUCanvasContext) {
+  public async render(context: GPUCanvasContext) {
     const commandEncoder = device.createCommandEncoder({
       label: "render cell group",
     });
 
-    const renderPass = commandEncoder.beginRenderPass({
+    const renderPass = this.timing.beginRenderPass(commandEncoder, {
       label: "render pass cells",
       colorAttachments: [
         {
@@ -56,6 +62,9 @@ export class CellGroupRenderer {
     renderPass.end();
 
     device.queue.submit([commandEncoder.finish()]);
+
+    this.timingAvg.addSample(await this.timing.getResult());
+    gpuRenderSpan.innerText = formatTime(this.timingAvg.get(), "ns");
   }
 
   static bindGroupLayout = device.createBindGroupLayout({
